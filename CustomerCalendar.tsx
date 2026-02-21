@@ -394,7 +394,9 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 const dateKey = `${year}-${month}-${day}`;
                 const newRec: Note = { id: Date.now(), customer: name, content: "Telegram ile eklendi", date: dateKey, time: "09:00", completed: false, createdAt: new Date().toISOString() };
                 await saveNoteToDb(newRec);
-                await sendTelegramMessage(telegramConfig, `✅ <b>Kayıt Eklendi!</b>\n👤 ${name}\n📅 ${dateRaw}`, null, senderId);
+                const dObj = new Date(parseInt(year), parseInt(month)-1, parseInt(day));
+                const dName = dObj.toLocaleDateString('tr-TR', { weekday: 'long' });
+                await sendTelegramMessage(telegramConfig, `✅ <b>Kayıt Eklendi!</b>\n👤 ${name}\n📅 ${dateRaw} ${dName}`, null, senderId);
                 return;
             }
         }
@@ -565,11 +567,39 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 await sendTelegramMessage(telegramConfig, "📅 <b>Tarih?</b>", [[{text:"Bugün"}, {text:"Yarın"}], [{text:"❌ İptal"}]], senderId);
                 break;
             case 'WAITING_DATE':
-                let dateStr = formatDateKey(new Date());
-                if (text === 'Yarın') { const d = new Date(); d.setDate(d.getDate()+1); dateStr = formatDateKey(d); }
-                const newRec: Note = { id: Date.now(), customer: userState.data.name, content: userState.data.desc, date: dateStr, time: "09:00", completed: false, createdAt: new Date().toISOString() };
+                let finalDateStr = formatDateKey(new Date());
+                let displayDate = new Date();
+
+                if (text === 'Bugün') {
+                    // Default is already today
+                } else if (text === 'Yarın') {
+                    displayDate.setDate(displayDate.getDate() + 1);
+                    finalDateStr = formatDateKey(displayDate);
+                } else {
+                    const dateMatch = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+                    if (dateMatch) {
+                        const day = dateMatch[1].padStart(2, '0');
+                        const month = dateMatch[2].padStart(2, '0');
+                        const year = dateMatch[3];
+                        finalDateStr = `${year}-${month}-${day}`;
+                        displayDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                    }
+                }
+
+                const dName = displayDate.toLocaleDateString('tr-TR', { weekday: 'long' });
+                const dDisplay = displayDate.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+                const newRec: Note = {
+                    id: Date.now(),
+                    customer: userState.data.name,
+                    content: userState.data.desc,
+                    date: finalDateStr,
+                    time: "09:00",
+                    completed: false,
+                    createdAt: new Date().toISOString()
+                };
                 await saveNoteToDb(newRec);
-                await sendTelegramMessage(telegramConfig, `✅ <b>Kayıt Başarılı!</b>\n👤 ${newRec.customer}\n📅 ${dateStr}`, null, senderId);
+                await sendTelegramMessage(telegramConfig, `✅ <b>Kayıt Başarılı!</b>\n👤 ${newRec.customer}\n📅 ${dDisplay} ${dName}`, null, senderId);
                 userState.state = 'IDLE'; await showMainMenu();
                 break;
         }
