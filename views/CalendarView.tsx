@@ -52,7 +52,7 @@ const CalendarView: React.FC<Props> = ({
                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleDrop(e, dateKey); }}
                      onClick={() => { setSelectedDate(dayDate); setIsDayDetailModalOpen(true); }} 
                      className={`min-h-[110px] rounded-2xl relative cursor-pointer p-2 flex flex-col transition-all duration-300 group border
-                     ${isSelected ? `bg-white dark:bg-slate-800 ring-2 ${activeTheme.ring} shadow-lg scale-[1.02] z-10 border-transparent` : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:-translate-y-1 border-transparent hover:border-slate-200 dark:hover:border-slate-700'}
+                     ${isSelected ? `bg-white dark:bg-slate-800 ring-2 ${activeTheme.ring} shadow-lg scale-[1.02] z-[101] border-transparent` : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:-translate-y-1 border-transparent hover:border-slate-200 dark:hover:border-slate-700'}
                      ${isWeekend ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}`}>
                      
                      <div className="flex justify-between items-start mb-1.5">
@@ -60,17 +60,16 @@ const CalendarView: React.FC<Props> = ({
                         {dayNotes.length > 0 && <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm ${activeTheme.light} ${activeTheme.text} dark:bg-slate-700 dark:text-white`}>{dayNotes.length}</span>}
                      </div>
                      
-                     <div className="flex flex-col gap-1.5 overflow-hidden">
-                        {dayNotes.slice(0,2).map(n=> {
+                     <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar flex-1 max-h-[120px]">
+                        {dayNotes.map(n=> {
                             const isOverdue = !n.completed && n.date < todayStr;
                             return (
                                 <div key={n.id} draggable="true" onDragStart={(e) => handleDragStart(e, n.id)}
-                                     className={`text-[10px] truncate px-2 py-1 rounded-lg border-l-2 cursor-grab active:cursor-grabbing shadow-sm transition-transform hover:scale-[1.02] ${n.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through border-slate-300' : isOverdue ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-500 font-bold' : getCustomerColor(n.customer)}`}>
+                                     className={`text-[10px] truncate px-2 py-1 rounded-lg border-l-2 cursor-grab active:cursor-grabbing shadow-sm transition-transform hover:scale-[1.02] shrink-0 ${n.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through border-slate-300' : isOverdue ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-500 font-bold' : getCustomerColor(n.customer)}`}>
                                     <span className="font-bold opacity-75 mr-1">{n.time}</span> {n.customer}
                                 </div>
                             );
                         })}
-                        {dayNotes.length > 2 && <div className="text-[10px] text-slate-400 pl-1 font-medium">+{dayNotes.length - 2} daha...</div>}
                      </div>
                      
                      <div className={`absolute bottom-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 ${activeTheme.light} ${activeTheme.text} dark:bg-slate-700 dark:text-white`}><Plus size={14} strokeWidth={3} /></div>
@@ -78,18 +77,18 @@ const CalendarView: React.FC<Props> = ({
              );
         }
         return (
-            <>
-                <div className="grid grid-cols-7 text-center pb-4 px-2">
+            <div className="flex flex-col flex-1 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-7 text-center pb-4 px-2 shrink-0">
                     {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((day, i) => (
                         <div key={day} className="flex justify-center">
                             <span className={`text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full ${i >= 5 ? 'text-rose-500 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>{day}</span>
                         </div>
                     ))}
                 </div>
-                <div className="grid grid-cols-7 gap-2 p-2 bg-slate-50/50 dark:bg-slate-900/20 rounded-b-[2rem] flex-1">
+                <div className="grid grid-cols-7 gap-2 p-2 bg-slate-50/50 dark:bg-slate-900/20 rounded-b-[2rem] flex-1 min-h-0">
                     {days}
                 </div>
-            </>
+            </div>
         );
     };
 
@@ -192,8 +191,8 @@ const CalendarView: React.FC<Props> = ({
                     <button onClick={(e) => handleToggleComplete(e, upcomingPriority.id)} className="bg-white text-slate-800 hover:scale-110 p-4 rounded-full shadow-lg transition-transform ml-4 group z-10"><CheckCircle className={`w-8 h-8 ${activeTheme.text}`} /></button>
                 </div>
             )}
-            <div className={`bg-white/50 dark:bg-dark-card/50 backdrop-blur-sm rounded-[2rem] shadow-sm border border-slate-200/50 dark:border-dark-border/50 overflow-hidden flex flex-col flex-1 animate-fade-in ${isFullscreen ? 'bg-white dark:bg-slate-800' : ''}`}>
-                <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className={`bg-white/50 dark:bg-dark-card/50 backdrop-blur-sm rounded-[2rem] shadow-sm border border-slate-200/50 dark:border-dark-border/50 overflow-hidden flex flex-col flex-1 animate-fade-in min-h-0 ${isFullscreen ? 'bg-white dark:bg-slate-800 ring-0 border-0' : ''}`}>
+                <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
                     <div className="flex flex-col md:flex-row items-center gap-4">
                         <h2 className="font-extrabold text-3xl text-slate-800 dark:text-slate-100 capitalize tracking-tight">
                             {calendarMode === 'month' 
