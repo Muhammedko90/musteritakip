@@ -10,7 +10,7 @@ import { db, auth } from './config/firebase';
 import { Note, StickyNote as StickyNoteType, TelegramConfig, UserProfile, ThemeMode, CustomFieldDef } from './types';
 import { THEME_COLORS, NOTE_COLORS } from './constants';
 import { formatDateKey, getStartOfWeek, getEndOfWeek } from './utils/helpers';
-import { sendTelegramMessage, answerCallbackQuery } from './services/telegramService';
+import { sendTelegramMessage, sendTelegramDocument, answerCallbackQuery } from './services/telegramService';
 
 // Views
 import CalendarView from './views/CalendarView';
@@ -45,6 +45,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
     // Telegram State
     const [telegramConfig, setTelegramConfig] = useState<TelegramConfig>({ botToken: '', chatId: '', enabled: false });
     const [sentReminders, setSentReminders] = useState<Set<number>>(new Set());
+    const [sentStickyReminders, setSentStickyReminders] = useState<Set<number>>(new Set());
     const lastUpdateIdRef = useRef(0);
     const botConversations = useRef<any>({});
 
@@ -136,7 +137,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         const updatedConfig = { ...telegramConfig, ...newConfig };
 
         // Handle Telegram state updates
-        if ('botToken' in newConfig || 'chatId' in newConfig || 'enabled' in newConfig) {
+        if ('botToken' in newConfig || 'chatId' in newConfig || 'enabled' in newConfig || 'webhookEnabled' in newConfig) {
             setTelegramConfig(prev => ({ ...prev, ...newConfig }));
         }
 
@@ -228,7 +229,8 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                     setTelegramConfig({
                         botToken: data.botToken || '',
                         chatId: data.chatId || '',
-                        enabled: data.enabled || false
+                        enabled: data.enabled || false,
+                        webhookEnabled: data.webhookEnabled || false
                     });
                     if(data.themeMode) {
                         setThemeMode(data.themeMode);
@@ -273,7 +275,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         saveSettingsToDb({ themeMode: newMode });
     };
 
-    // --- Telegram Reminders ---
+    // --- Telegram Reminders (Appointments & Sticky Notes) ---
     useEffect(() => {
         if (!telegramConfig.enabled || !telegramConfig.botToken) return;
 
@@ -282,21 +284,34 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             const currentHourMinute = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
             const todayStr = formatDateKey(now);
 
+            // Appointment Reminders
             notes.forEach(note => {
                 if (note.date === todayStr && note.time === currentHourMinute && !note.completed && !sentReminders.has(note.id)) {
                     sendTelegramMessage(telegramConfig, `🔔 <b>BUGÜNÜN RANDEVUSU</b>\n👤 ${note.customer}\n🕐 Saat: ${note.time}\n📝 ${note.content}`);
                     setSentReminders(prev => new Set(prev).add(note.id));
                 }
             });
+
+            // Sticky Note Reminders
+            stickyNotes.forEach(note => {
+                if (note.reminderDate === todayStr && note.reminderTime === currentHourMinute && !note.archived && !sentStickyReminders.has(note.id)) {
+                    let msg = `⏰ <b>HATIRLATICI: ${note.title || "Yapışkan Not"}</b>\n\n`;
+                    note.blocks.forEach(b => {
+                         msg += b.type === 'todo' ? `${b.done ? '✅' : '⬜'} ${b.content}\n` : `${b.content}\n`;
+                    });
+                    sendTelegramMessage(telegramConfig, msg);
+                    setSentStickyReminders(prev => new Set(prev).add(note.id));
+                }
+            });
         };
         const interval = setInterval(checkReminders, 30000);
         return () => clearInterval(interval);
-    }, [notes, telegramConfig, sentReminders]);
+    }, [notes, stickyNotes, telegramConfig, sentReminders, sentStickyReminders]);
 
-    // Bot Polling
+    // Bot Polling (Only if Webhook is not used or as fallback)
     useEffect(() => {
         notesRef.current = stickyNotes;
-        if (!isLoaded || !telegramConfig.enabled || !telegramConfig.botToken) return;
+        if (!isLoaded || !telegramConfig.enabled || !telegramConfig.botToken || telegramConfig.webhookEnabled) return;
         
         const pollTelegram = async () => {
             try {
@@ -665,7 +680,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         setIsEditModalOpen(false); setEditingNote(null);
     };
 
-    const handleSendTelegram = async (type: 'notes' | 'appointments' | 'completed' | 'week') => {
+    const handleSendTelegram = async (type: 'notes' | 'appointments' | 'completed' | 'week' | 'backup') => {
         if(!telegramConfig.enabled || !telegramConfig.botToken) {
             return setNotificationModal({ isOpen: true, title: 'Hata', message: 'Telegram botu aktif değil veya token eksik.', type: 'error' });
         }
@@ -673,6 +688,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         if (type === 'notes') {
             let msg = "📝 <b>Yapışkan Notlarınız:</b>\n\n";
             stickyNotes.forEach((card, i) => {
+                if(card.archived) return;
                 msg += `📌 <b>${card.title || `Not ${i+1}`}</b>\n`;
                 card.blocks.forEach(block => msg += `${block.type === 'todo' ? (block.done ? '✅' : '⬜') : ''} ${block.content}\n`);
                 msg += "\n";
@@ -716,6 +732,26 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             let msg = `📅 <b>Bu Hafta (${new Date(start).toLocaleDateString('tr-TR')} - ${new Date(end).toLocaleDateString('tr-TR')})</b>\n\n`;
             weekNotes.forEach(n => msg += `${new Date(n.date).toLocaleDateString('tr-TR', {day:'numeric', month:'short'})} | ${n.time} - ${n.customer}\n`);
             await sendTelegramMessage(telegramConfig, msg);
+        } else if (type === 'backup') {
+            const data = {
+                notes,
+                stickyNotes,
+                telegramConfig,
+                customFields,
+                exportDate: new Date().toISOString(),
+                userEmail: user.email
+            };
+            const fileName = `yedek_${formatDateKey(new Date())}.json`;
+            const caption = `📦 <b>Sistem Yedeği</b>\n📅 Tarih: ${new Date().toLocaleString('tr-TR')}\n👤 Kullanıcı: ${user.email}`;
+
+            const success = await sendTelegramDocument(telegramConfig, JSON.stringify(data, null, 2), fileName, caption);
+
+            if (success) {
+                setNotificationModal({ isOpen: true, title: 'Başarılı', message: 'Yedek dosyası Telegram botuna gönderildi.', type: 'success' });
+            } else {
+                setNotificationModal({ isOpen: true, title: 'Hata', message: 'Yedek dosyası gönderilemedi.', type: 'error' });
+            }
+            return;
         }
         setNotificationModal({ isOpen: true, title: 'Başarılı', message: 'Bilgiler Telegram botuna gönderildi.', type: 'success' });
     };
@@ -761,7 +797,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 
                 {viewMode === 'kanban' && <KanbanView notes={notes} activeTheme={activeTheme} handleToggleComplete={handleToggleComplete} handleDeleteNote={handleDeleteNote} openEditModal={(note) => { setEditingNote(note); setIsEditModalOpen(true); }} handleDragStart={(e, id) => e.dataTransfer.setData('text/plain', String(id))} />}
                 
-                {viewMode === 'dashboard' && <DashboardView notes={notes} activeTheme={activeTheme} handleSendTelegram={handleSendTelegram} />}
+                {viewMode === 'dashboard' && <DashboardView notes={notes} stickyNotes={stickyNotes} activeTheme={activeTheme} handleSendTelegram={handleSendTelegram} />}
             </main>
 
             {/* MODALS */}
