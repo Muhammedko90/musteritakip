@@ -9,6 +9,7 @@ export interface Note {
     createdAt?: string;
     customValues?: Record<string, string>; // Field ID -> Value
     recurrenceId?: number; // Group ID for recurring events
+    archived?: boolean;
 }
 
 export interface CustomFieldDef {
@@ -27,15 +28,20 @@ export interface Block {
 
 export interface StickyNote {
     id: number;
-    color: string;
+    color: string; // Hex color
     title: string;
     blocks: Block[];
+    reminderDate?: string | null; // YYYY-MM-DD
+    reminderTime?: string | null; // HH:mm
+    pinned?: boolean;
+    archived?: boolean;
 }
 
 export interface TelegramConfig {
     botToken: string;
     chatId: string;
     enabled: boolean;
+    webhookEnabled?: boolean;
 }
 
 export interface UserProfile {
