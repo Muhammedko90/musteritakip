@@ -77,7 +77,7 @@ const DayDetailModal: React.FC<Props> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={onClose}>
             <div className={`bg-white ${activeTheme.darkCard} rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] animate-[scaleIn_0.2s_ease-out] transition-colors duration-300`} onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className={`${activeTheme.primary} p-5 text-white flex justify-between items-center shadow-lg relative overflow-hidden shrink-0`}>
