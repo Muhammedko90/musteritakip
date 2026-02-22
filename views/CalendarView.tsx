@@ -52,15 +52,16 @@ const CalendarView: React.FC<Props> = ({
                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleDrop(e, dateKey); }}
                      onClick={() => { setSelectedDate(dayDate); setIsDayDetailModalOpen(true); }} 
                      className={`min-h-[110px] rounded-2xl relative cursor-pointer p-2 flex flex-col transition-all duration-300 group border
-                     ${isSelected ? `bg-white dark:bg-slate-800 ring-2 ${activeTheme.ring} shadow-lg scale-[1.02] z-[101] border-transparent` : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:-translate-y-1 border-transparent hover:border-slate-200 dark:hover:border-slate-700'}
-                     ${isWeekend ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}`}>
+                     ${isSelected ? `bg-white dark:bg-slate-800 ring-2 ${activeTheme.ring} shadow-lg scale-[1.02] z-[10] border-transparent` : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:-translate-y-1 border-transparent hover:border-slate-200 dark:hover:border-slate-700'}
+                     ${isWeekend ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}
+                     ${isFullscreen ? 'flex-1' : ''}`}>
                      
                      <div className="flex justify-between items-start mb-1.5">
                         <span className={`text-sm font-bold w-8 h-8 flex items-center justify-center rounded-xl transition-all ${isToday ? `${activeTheme.primary} text-white shadow-lg shadow-blue-500/30` : isWeekend ? 'text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50'}`}>{i}</span>
                         {dayNotes.length > 0 && <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm ${activeTheme.light} ${activeTheme.text} dark:bg-slate-700 dark:text-white`}>{dayNotes.length}</span>}
                      </div>
                      
-                     <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar flex-1 max-h-[120px]">
+                     <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar flex-1 max-h-[150px]">
                         {dayNotes.map(n=> {
                             const isOverdue = !n.completed && n.date < todayStr;
                             return (
@@ -85,7 +86,7 @@ const CalendarView: React.FC<Props> = ({
                         </div>
                     ))}
                 </div>
-                <div className="grid grid-cols-7 gap-2 p-2 bg-slate-50/50 dark:bg-slate-900/20 rounded-b-[2rem] flex-1 min-h-0">
+                <div className={`grid grid-cols-7 gap-2 p-2 bg-slate-50/50 dark:bg-slate-900/20 rounded-b-[2rem] flex-1 min-h-0 ${isFullscreen ? 'auto-rows-fr' : ''}`}>
                     {days}
                 </div>
             </div>
@@ -179,7 +180,7 @@ const CalendarView: React.FC<Props> = ({
     };
 
     return (
-        <div className={`flex flex-col h-full gap-6 ${isFullscreen ? 'fixed inset-0 z-[100] bg-white dark:bg-slate-900 p-4 md:p-8' : ''}`}>
+        <div className={`flex flex-col h-full gap-6 ${isFullscreen ? 'fixed inset-0 z-[80] bg-white dark:bg-slate-900 p-4 md:p-8' : ''}`}>
             {upcomingPriority && !isFullscreen && (
                 <div className={`bg-gradient-to-r ${activeTheme.gradient} rounded-3xl p-6 text-white shadow-xl ${activeTheme.shadow} flex items-center justify-between shrink-0 animate-fade-in relative overflow-hidden`}>
                     <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
@@ -191,7 +192,7 @@ const CalendarView: React.FC<Props> = ({
                     <button onClick={(e) => handleToggleComplete(e, upcomingPriority.id)} className="bg-white text-slate-800 hover:scale-110 p-4 rounded-full shadow-lg transition-transform ml-4 group z-10"><CheckCircle className={`w-8 h-8 ${activeTheme.text}`} /></button>
                 </div>
             )}
-            <div className={`bg-white/50 dark:bg-dark-card/50 backdrop-blur-sm rounded-[2rem] shadow-sm border border-slate-200/50 dark:border-dark-border/50 overflow-hidden flex flex-col flex-1 animate-fade-in min-h-0 ${isFullscreen ? 'bg-white dark:bg-slate-800 ring-0 border-0' : ''}`}>
+            <div className={`bg-white/50 dark:bg-dark-card/50 backdrop-blur-sm rounded-[2rem] shadow-sm border border-slate-200/50 dark:border-dark-border/50 overflow-hidden flex flex-col flex-1 animate-fade-in min-h-0 ${isFullscreen ? 'bg-white dark:bg-slate-800 ring-0 border-0 shadow-none' : ''}`}>
                 <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
                     <div className="flex flex-col md:flex-row items-center gap-4">
                         <h2 className="font-extrabold text-3xl text-slate-800 dark:text-slate-100 capitalize tracking-tight">
