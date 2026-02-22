@@ -37,6 +37,37 @@ export const sendTelegramMessage = async (
     return true;
 };
 
+export const sendTelegramDocument = async (
+    config: TelegramConfig,
+    fileContent: string,
+    fileName: string,
+    caption: string
+): Promise<boolean> => {
+    const { botToken, chatId } = config;
+    if (!botToken || !chatId) return false;
+
+    const recipients = chatId.split(',').map(id => id.trim()).filter(id => id);
+    const blob = new Blob([fileContent], { type: 'application/json' });
+
+    for (const recipientId of recipients) {
+        const formData = new FormData();
+        formData.append('chat_id', recipientId);
+        formData.append('document', blob, fileName);
+        formData.append('caption', caption);
+        formData.append('parse_mode', 'HTML');
+
+        try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+                method: 'POST',
+                body: formData
+            });
+        } catch (e) {
+            console.error(`Telegram Document Send Error:`, e);
+        }
+    }
+    return true;
+};
+
 export const answerCallbackQuery = async (botToken: string, callbackQueryId: string, text: string) => {
     try {
        await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
