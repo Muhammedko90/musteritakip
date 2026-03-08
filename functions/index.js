@@ -8,6 +8,9 @@ const FormData = require('form-data');
 // Firebase Admin SDK'yı başlatıyoruz
 admin.initializeApp();
 
+// Telegram bot token'ını ortam değişkeninden okuyoruz (kodda tutulmamalı)
+const TELEGRAM_WEBHOOK_BOT_TOKEN = process.env.TELEGRAM_WEBHOOK_BOT_TOKEN || '';
+
 /**
  * Yardımcı Fonksiyon: Türkiye saatine göre tarih stringi üretir (YYYY-MM-DD)
  */
@@ -22,7 +25,12 @@ const getTrDateStr = (daysToAdd = 0) => {
  * 1. TELEGRAM WEBHOOK (Komutları İşleyen Zengin Asistan)
  */
 exports.telegramWebhook = onRequest(async (req, res) => {
-    const botToken = "8304352020:AAELxWvE8h7PWqNVoEfEmKzXmI9EPZd7KUw"; 
+    const botToken = TELEGRAM_WEBHOOK_BOT_TOKEN;
+
+    if (!botToken) {
+        console.error('Telegram webhook bot token is not configured (TELEGRAM_WEBHOOK_BOT_TOKEN)');
+        return res.sendStatus(500);
+    }
 
     const sendMessageTo = async (targetChatId, messageText, replyMarkup = null) => {
         const payload = {
