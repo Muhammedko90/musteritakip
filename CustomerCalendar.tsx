@@ -227,9 +227,24 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
     ) => {
         const updatedConfig = { ...telegramConfig, ...newConfig };
 
-        // Handle Telegram state updates
-        if ('botToken' in newConfig || 'chatId' in newConfig || 'enabled' in newConfig || 'webhookEnabled' in newConfig) {
-            setTelegramConfig(prev => ({ ...prev, ...newConfig }));
+        // Handle Telegram state updates (all TelegramConfig-related fields)
+        const telegramPatch: Partial<TelegramConfig> = {};
+        if ('botToken' in newConfig) telegramPatch.botToken = newConfig.botToken ?? telegramConfig.botToken;
+        if ('chatId' in newConfig) telegramPatch.chatId = newConfig.chatId ?? telegramConfig.chatId;
+        if ('enabled' in newConfig) telegramPatch.enabled = newConfig.enabled ?? telegramConfig.enabled;
+        if ('webhookEnabled' in newConfig) telegramPatch.webhookEnabled = newConfig.webhookEnabled ?? telegramConfig.webhookEnabled;
+        if ('dailySummaryEnabled' in newConfig) telegramPatch.dailySummaryEnabled = newConfig.dailySummaryEnabled;
+        if ('dailySummaryTime' in newConfig) telegramPatch.dailySummaryTime = newConfig.dailySummaryTime;
+        if ('weeklySummaryEnabled' in newConfig) telegramPatch.weeklySummaryEnabled = newConfig.weeklySummaryEnabled;
+        if ('weeklySummaryDay' in newConfig) telegramPatch.weeklySummaryDay = newConfig.weeklySummaryDay;
+        if ('weeklySummaryTime' in newConfig) telegramPatch.weeklySummaryTime = newConfig.weeklySummaryTime;
+        if ('autoBackupEnabled' in newConfig) telegramPatch.autoBackupEnabled = newConfig.autoBackupEnabled;
+        if ('autoBackupTime' in newConfig) telegramPatch.autoBackupTime = newConfig.autoBackupTime;
+        if ('autoBackupTarget' in newConfig) telegramPatch.autoBackupTarget = newConfig.autoBackupTarget;
+        if ('autoBackupFrequency' in newConfig) telegramPatch.autoBackupFrequency = newConfig.autoBackupFrequency;
+
+        if (Object.keys(telegramPatch).length > 0) {
+            setTelegramConfig(prev => ({ ...prev, ...telegramPatch }));
         }
 
         // Handle Theme state updates
@@ -248,7 +263,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         }
 
         if (user.isDemo) {
-            if ('botToken' in newConfig) localStorage.setItem('telegramConfig', JSON.stringify(updatedConfig));
+            localStorage.setItem('telegramConfig', JSON.stringify(updatedConfig));
         } else {
             try {
                 await setDoc(doc(db, "users", user.uid, "settings", "config"), updatedConfig, { merge: true });
@@ -340,7 +355,16 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                         botToken: data.botToken || '',
                         chatId: data.chatId || '',
                         enabled: data.enabled || false,
-                        webhookEnabled: data.webhookEnabled || false
+                        webhookEnabled: data.webhookEnabled || false,
+                        dailySummaryEnabled: data.dailySummaryEnabled ?? false,
+                        dailySummaryTime: data.dailySummaryTime,
+                        weeklySummaryEnabled: data.weeklySummaryEnabled ?? false,
+                        weeklySummaryDay: typeof data.weeklySummaryDay === 'number' ? data.weeklySummaryDay : 0,
+                        weeklySummaryTime: data.weeklySummaryTime,
+                        autoBackupEnabled: data.autoBackupEnabled ?? false,
+                        autoBackupTime: data.autoBackupTime,
+                        autoBackupTarget: data.autoBackupTarget,
+                        autoBackupFrequency: data.autoBackupFrequency,
                     });
                     if(data.themeMode) {
                         setThemeMode(data.themeMode);
