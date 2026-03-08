@@ -12,9 +12,10 @@ interface Props {
     handleDeleteNote: (e: React.MouseEvent, id: number) => void;
     openEditModal: (note: Note) => void;
     handleDragStart: (e: React.DragEvent, id: number) => void;
+    onOpenCustomerCard?: (customer: string) => void;
 }
 
-const KanbanView: React.FC<Props> = ({ notes, activeTheme, handleToggleComplete, handleDeleteNote, openEditModal, handleDragStart }) => {
+const KanbanView: React.FC<Props> = ({ notes, activeTheme, handleToggleComplete, handleDeleteNote, openEditModal, handleDragStart, onOpenCustomerCard }) => {
     const todayStr = formatDateKey(new Date());
 
     // Initial state: Overdue expanded, others collapsed
@@ -56,10 +57,16 @@ const KanbanView: React.FC<Props> = ({ notes, activeTheme, handleToggleComplete,
                     className={`bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border flex gap-3 group hover:shadow-md transition-all relative overflow-hidden h-full ${note.completed ? 'opacity-70' : ''}`}
                 >
                     <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${note.completed ? 'bg-emerald-500' : isOverdue ? 'bg-rose-500 animate-pulse' : 'bg-orange-400'}`}></div>
-                    <div className="flex-1 pl-2 flex flex-col justify-center min-w-0">
+                        <div className="flex-1 pl-2 flex flex-col justify-center min-w-0">
                         <div className="flex items-center gap-3 mb-1">
                             <div className={`text-xs font-bold px-2 py-0.5 rounded-lg shrink-0 ${note.completed ? 'bg-emerald-50 text-emerald-600' : isOverdue ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>{note.time}</div>
-                            <div className={`font-bold text-lg leading-tight truncate ${note.completed ? 'line-through text-slate-500' : 'text-slate-800 dark:text-slate-100'}`}>{note.customer}</div>
+                            <button
+                                type="button"
+                                onClick={() => onOpenCustomerCard && onOpenCustomerCard(note.customer)}
+                                className={`font-bold text-lg leading-tight truncate text-left ${note.completed ? 'line-through text-slate-500' : 'text-slate-800 dark:text-slate-100'} hover:underline`}
+                            >
+                                {note.customer}
+                            </button>
                         </div>
                         <div className="text-sm text-slate-500 dark:text-slate-400 truncate">{note.content}</div>
                         <div className="text-[10px] text-slate-400 mt-2 flex items-center gap-2 font-bold">

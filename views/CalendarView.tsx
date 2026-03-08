@@ -10,6 +10,7 @@ interface Props {
     selectedDate: Date;
     setSelectedDate: (d: Date) => void;
     setIsDayDetailModalOpen: (v: boolean) => void;
+    openQuickAdd: (date: Date) => void;
     handleToggleComplete: (e: React.MouseEvent, id: number) => void;
     handleDragStart: (e: React.DragEvent, id: number) => void;
     handleDrop: (e: React.DragEvent, dateStr: string) => void;
@@ -18,7 +19,7 @@ interface Props {
 
 const CalendarView: React.FC<Props> = ({ 
     notes, currentDate, setCurrentDate, selectedDate, setSelectedDate, 
-    setIsDayDetailModalOpen, handleToggleComplete, handleDragStart, handleDrop, activeTheme 
+    setIsDayDetailModalOpen, openQuickAdd, handleToggleComplete, handleDragStart, handleDrop, activeTheme 
 }) => {
     const [calendarMode, setCalendarMode] = useState<'month' | 'week'>('month');
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -35,7 +36,14 @@ const CalendarView: React.FC<Props> = ({
         const firstDay = getFirstDayOfMonth(currentDate);
         const days = [];
 
-        for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} className="min-h-[100px]"></div>);
+        for (let i = 0; i < firstDay; i++) {
+            days.push(
+                <div
+                    key={`empty-${i}`}
+                    className="min-h-[110px] sm:min-h-[100px]"
+                ></div>
+            );
+        }
 
         for (let i = 1; i <= daysInMonth; i++) {
              const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
@@ -51,45 +59,52 @@ const CalendarView: React.FC<Props> = ({
                      onDragLeave={e => e.currentTarget.classList.remove('drag-over')} 
                      onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove('drag-over'); handleDrop(e, dateKey); }}
                      onClick={() => { setSelectedDate(dayDate); setIsDayDetailModalOpen(true); }} 
-                     className={`min-h-[110px] rounded-2xl relative cursor-pointer p-2 flex flex-col transition-all duration-300 group border
-                     ${isSelected ? `bg-white dark:bg-slate-800 ring-2 ${activeTheme.ring} shadow-lg scale-[1.02] z-10 border-transparent` : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:-translate-y-1 border-transparent hover:border-slate-200 dark:hover:border-slate-700'}
-                     ${isWeekend ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}`}>
+                     className={`min-h-[130px] sm:min-h-[110px] rounded-2xl relative cursor-pointer p-2 sm:p-2.5 flex flex-col transition-all duration-300 group border
+                     ${isSelected ? `bg-white dark:bg-slate-800 ring-2 ${activeTheme.ring} shadow-lg scale-[1.02] z-[10] border-transparent` : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 hover:shadow-lg hover:-translate-y-1 border-transparent hover:border-slate-200 dark:hover:border-slate-700'}
+                     ${isWeekend ? 'bg-slate-50/50 dark:bg-slate-900/30' : ''}
+                     ${isFullscreen ? 'flex-1' : ''}`}>
                      
                      <div className="flex justify-between items-start mb-1.5">
                         <span className={`text-sm font-bold w-8 h-8 flex items-center justify-center rounded-xl transition-all ${isToday ? `${activeTheme.primary} text-white shadow-lg shadow-blue-500/30` : isWeekend ? 'text-red-400 bg-red-50 dark:bg-red-900/20' : 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50'}`}>{i}</span>
                         {dayNotes.length > 0 && <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm ${activeTheme.light} ${activeTheme.text} dark:bg-slate-700 dark:text-white`}>{dayNotes.length}</span>}
                      </div>
                      
-                     <div className="flex flex-col gap-1.5 overflow-hidden">
-                        {dayNotes.slice(0,2).map(n=> {
+                     <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar flex-1 max-h-[190px] sm:max-h-[150px]">
+                        {dayNotes.map(n=> {
                             const isOverdue = !n.completed && n.date < todayStr;
                             return (
                                 <div key={n.id} draggable="true" onDragStart={(e) => handleDragStart(e, n.id)}
-                                     className={`text-[10px] truncate px-2 py-1 rounded-lg border-l-2 cursor-grab active:cursor-grabbing shadow-sm transition-transform hover:scale-[1.02] ${n.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through border-slate-300' : isOverdue ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-500 font-bold' : getCustomerColor(n.customer)}`}>
+                                     className={`text-[10px] truncate px-2 py-1 rounded-lg border-l-2 cursor-grab active:cursor-grabbing shadow-sm transition-transform hover:scale-[1.02] shrink-0 ${n.completed ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through border-slate-300' : isOverdue ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-500 font-bold' : getCustomerColor(n.customer)}`}>
                                     <span className="font-bold opacity-75 mr-1">{n.time}</span> {n.customer}
                                 </div>
                             );
                         })}
-                        {dayNotes.length > 2 && <div className="text-[10px] text-slate-400 pl-1 font-medium">+{dayNotes.length - 2} daha...</div>}
                      </div>
                      
-                     <div className={`absolute bottom-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 ${activeTheme.light} ${activeTheme.text} dark:bg-slate-700 dark:text-white`}><Plus size={14} strokeWidth={3} /></div>
+                     <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); openQuickAdd(dayDate); }}
+                        className={`absolute bottom-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 ${activeTheme.light} ${activeTheme.text} dark:bg-slate-700 dark:text-white`}
+                        title="Hızlı randevu ekle"
+                     >
+                        <Plus size={14} strokeWidth={3} />
+                     </button>
                 </div>
              );
         }
         return (
-            <>
-                <div className="grid grid-cols-7 text-center pb-4 px-2">
+            <div className="flex flex-col flex-1 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-7 text-center pb-3 px-1 sm:px-2 shrink-0">
                     {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((day, i) => (
                         <div key={day} className="flex justify-center">
                             <span className={`text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full ${i >= 5 ? 'text-rose-500 bg-rose-50 dark:bg-rose-900/20' : 'text-slate-400 bg-slate-100 dark:bg-slate-800'}`}>{day}</span>
                         </div>
                     ))}
                 </div>
-                <div className="grid grid-cols-7 gap-2 p-2 bg-slate-50/50 dark:bg-slate-900/20 rounded-b-[2rem] flex-1">
+                <div className={`grid grid-cols-7 gap-1.5 sm:gap-2 p-1.5 sm:p-2 bg-slate-50/50 dark:bg-slate-900/20 rounded-b-[2rem] flex-1 min-h-0 ${isFullscreen ? 'auto-rows-fr' : ''}`}>
                     {days}
                 </div>
-            </>
+            </div>
         );
     };
 
@@ -155,7 +170,7 @@ const CalendarView: React.FC<Props> = ({
                                         );
                                     })}
                                     <button 
-                                        onClick={() => { setSelectedDate(day); setIsDayDetailModalOpen(true); }}
+                                        onClick={() => { openQuickAdd(day); }}
                                         className="w-full py-2 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100"
                                     >
                                         <Plus size={14} />
@@ -179,8 +194,10 @@ const CalendarView: React.FC<Props> = ({
         setCurrentDate(newDate);
     };
 
+    const today = new Date();
+
     return (
-        <div className={`flex flex-col h-full gap-6 ${isFullscreen ? 'fixed inset-0 z-[100] bg-white dark:bg-slate-900 p-4 md:p-8' : ''}`}>
+        <div className={`flex flex-col h-full gap-6 ${isFullscreen ? 'fixed inset-0 z-[80] bg-white dark:bg-slate-900 p-4 md:p-8' : ''}`}>
             {upcomingPriority && !isFullscreen && (
                 <div className={`bg-gradient-to-r ${activeTheme.gradient} rounded-3xl p-6 text-white shadow-xl ${activeTheme.shadow} flex items-center justify-between shrink-0 animate-fade-in relative overflow-hidden`}>
                     <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
@@ -192,15 +209,18 @@ const CalendarView: React.FC<Props> = ({
                     <button onClick={(e) => handleToggleComplete(e, upcomingPriority.id)} className="bg-white text-slate-800 hover:scale-110 p-4 rounded-full shadow-lg transition-transform ml-4 group z-10"><CheckCircle className={`w-8 h-8 ${activeTheme.text}`} /></button>
                 </div>
             )}
-            <div className={`bg-white/50 dark:bg-dark-card/50 backdrop-blur-sm rounded-[2rem] shadow-sm border border-slate-200/50 dark:border-dark-border/50 overflow-hidden flex flex-col flex-1 animate-fade-in ${isFullscreen ? 'bg-white dark:bg-slate-800' : ''}`}>
-                <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className={`bg-white/50 dark:bg-dark-card/50 backdrop-blur-sm rounded-[2rem] shadow-sm border border-slate-200/50 dark:border-dark-border/50 overflow-hidden flex flex-col flex-1 animate-fade-in min-h-0 ${isFullscreen ? 'bg-white dark:bg-slate-800 ring-0 border-0 shadow-none' : ''}`}>
+                <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
                     <div className="flex flex-col md:flex-row items-center gap-4">
-                        <h2 className="font-extrabold text-3xl text-slate-800 dark:text-slate-100 capitalize tracking-tight">
-                            {calendarMode === 'month' 
-                                ? currentDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) 
-                                : `Hafta: ${getStartOfWeek(currentDate).getDate()} - ${new Date(new Date(getStartOfWeek(currentDate)).setDate(getStartOfWeek(currentDate).getDate()+6)).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}`
-                            }
-                        </h2>
+                        <button
+                            onClick={() => { setCurrentDate(new Date()); setSelectedDate(new Date()); }}
+                            className="text-left group transition-all"
+                        >
+                            <h2 className="font-extrabold text-3xl text-slate-800 dark:text-slate-100 capitalize tracking-tight group-hover:text-blue-500 transition-colors">
+                                Bugün: {today.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </h2>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Bugüne Gitmek İçin Tıkla</p>
+                        </button>
                     </div>
                     
                     <div className="flex items-center gap-4">
@@ -221,9 +241,11 @@ const CalendarView: React.FC<Props> = ({
                             </button>
                         </div>
 
-                        <div className="flex bg-white dark:bg-slate-800 rounded-2xl p-1.5 gap-2 border border-slate-200 dark:border-dark-border shadow-sm">
+                        <div className="flex bg-white dark:bg-slate-800 rounded-2xl p-1.5 gap-2 border border-slate-200 dark:border-dark-border shadow-sm items-center">
                             <button onClick={() => handleDateNav('prev')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300"><ChevronLeft size={20}/></button>
-                            <button onClick={() => setCurrentDate(new Date())} className="text-sm font-bold px-5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300">Bugün</button>
+                            <div className="text-sm font-bold px-4 text-slate-700 dark:text-slate-200 min-w-[100px] text-center capitalize">
+                                {currentDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+                            </div>
                             <button onClick={() => handleDateNav('next')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-all text-slate-600 dark:text-slate-300"><ChevronRight size={20}/></button>
                         </div>
                     </div>

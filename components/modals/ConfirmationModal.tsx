@@ -19,7 +19,7 @@ const ConfirmationModal: React.FC<Props> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-[scaleIn_0.2s_ease-out] border border-slate-200 dark:border-slate-700" onClick={e => e.stopPropagation()}>
                 <div className="p-6 text-center">
                     <div className={`mx-auto mb-4 w-16 h-16 rounded-full flex items-center justify-center ${type === 'danger' ? 'bg-red-100 text-red-500 dark:bg-red-900/30' : 'bg-orange-100 text-orange-500'}`}>

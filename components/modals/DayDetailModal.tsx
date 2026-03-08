@@ -16,13 +16,19 @@ interface Props {
     onDeleteNote: (e: React.MouseEvent, id: number) => void;
     onEditNote: (note: Note) => void;
     customFields: CustomFieldDef[];
+    onOpenCustomerCard?: (customer: string) => void;
 }
 
 const DayDetailModal: React.FC<Props> = ({ 
     isOpen, onClose, selectedDate, notes, activeTheme, accentColor,
-    onAddNote, onToggleComplete, onDeleteNote, onEditNote, customFields
+    onAddNote, onToggleComplete, onDeleteNote, onEditNote, customFields, onOpenCustomerCard
 }) => {
-    const [newNote, setNewNote] = useState({ customer: '', content: '', time: '09:00' });
+    const [newNote, setNewNote] = useState<{ customer: string; content: string; time: string; reminderBefore: Note['reminderBefore'] }>({
+        customer: '',
+        content: '',
+        time: '09:00',
+        reminderBefore: 'none'
+    });
     const [customValues, setCustomValues] = useState<Record<string, string>>({});
     const [recurrence, setRecurrence] = useState<string>('none');
     
@@ -43,9 +49,23 @@ const DayDetailModal: React.FC<Props> = ({
     }, [notes, selectedDate]);
 
     const uniqueCustomers = useMemo(() => {
-        const counts: Record<string, number> = {};
-        notes.forEach(n => { if (n.customer) counts[n.customer] = (counts[n.customer] || 0) + 1; });
-        return Object.keys(counts).sort((a,b) => counts[b] - counts[a]);
+        const sorted = [...notes].sort((a, b) => {
+            const getTs = (n: Note) => {
+                if (n.createdAt) return new Date(n.createdAt).getTime();
+                return new Date(`${n.date}T${n.time || '00:00'}`).getTime();
+            };
+            return getTs(b) - getTs(a);
+        });
+        const seen = new Set<string>();
+        const result: string[] = [];
+        for (const n of sorted) {
+            const name = (n.customer || '').trim();
+            if (!name || seen.has(name)) continue;
+            seen.add(name);
+            result.push(name);
+            if (result.length >= 10) break;
+        }
+        return result;
     }, [notes]);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -59,10 +79,11 @@ const DayDetailModal: React.FC<Props> = ({
             date: formatDateKey(selectedDate),
             completed: false,
             createdAt: new Date().toISOString(),
-            customValues: customValues
+            customValues: customValues,
+            reminderBefore: newNote.reminderBefore && newNote.reminderBefore !== 'none' ? newNote.reminderBefore : undefined
         };
         onAddNote(noteData, recurrence);
-        setNewNote({ customer: '', content: '', time: '09:00' });
+        setNewNote({ customer: '', content: '', time: '09:00', reminderBefore: 'none' });
         setCustomValues({});
         setRecurrence('none');
     };
@@ -77,7 +98,7 @@ const DayDetailModal: React.FC<Props> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in" onClick={onClose}>
             <div className={`bg-white ${activeTheme.darkCard} rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh] animate-[scaleIn_0.2s_ease-out] transition-colors duration-300`} onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className={`${activeTheme.primary} p-5 text-white flex justify-between items-center shadow-lg relative overflow-hidden shrink-0`}>
@@ -146,6 +167,28 @@ const DayDetailModal: React.FC<Props> = ({
                             </div>
                         </div>
 
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 ml-1 mb-1 block uppercase tracking-tighter">Hatırlatma Zamanı</label>
+                            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm">
+                                <AlertCircle size={16} className="text-slate-400" />
+                                <select
+                                    className="bg-transparent text-xs text-slate-700 dark:text-slate-300 font-bold outline-none w-full cursor-pointer"
+                                    value={newNote.reminderBefore || 'none'}
+                                    onChange={e =>
+                                        setNewNote(prev => ({
+                                            ...prev,
+                                            reminderBefore: e.target.value as Note['reminderBefore'],
+                                        }))
+                                    }
+                                >
+                                    <option value="none" className="dark:bg-slate-800">Sadece Randevu Saatinde</option>
+                                    <option value="15m" className="dark:bg-slate-800">15 dakika önce</option>
+                                    <option value="1h" className="dark:bg-slate-800">1 saat önce</option>
+                                    <option value="1d" className="dark:bg-slate-800">1 gün önce</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="flex flex-wrap gap-2">
                             {QUICK_DESCRIPTIONS.map(desc => (
                                 <button key={desc} type="button" onClick={() => setNewNote({...newNote, content: desc})} className={`text-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 px-3 py-2 rounded-lg transition-all text-slate-500 dark:text-slate-400 font-bold hover:bg-slate-50 dark:hover:bg-slate-700`}>{desc}</button>
@@ -177,7 +220,13 @@ const DayDetailModal: React.FC<Props> = ({
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-1.5">
                                                         <span className={`${isOverdue ? 'bg-rose-100 text-rose-700' : `${activeTheme.light} ${activeTheme.text}`} dark:bg-white/10 dark:text-slate-300 text-[10px] px-2 py-1 rounded-lg font-black`}>{note.time}</span>
-                                                        <h4 className={`font-extrabold text-base truncate ${note.completed ? 'line-through text-slate-400' : isOverdue ? 'text-rose-800 dark:text-rose-200' : 'text-slate-800 dark:text-slate-100'}`}>{note.customer}</h4>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onOpenCustomerCard && onOpenCustomerCard(note.customer)}
+                                                            className={`font-extrabold text-base truncate text-left ${note.completed ? 'line-through text-slate-400' : isOverdue ? 'text-rose-800 dark:text-rose-200' : 'text-slate-800 dark:text-slate-100'} hover:underline`}
+                                                        >
+                                                            {note.customer}
+                                                        </button>
                                                     </div>
                                                     <p className={`text-xs font-medium pl-1 leading-relaxed ${isOverdue ? 'text-rose-600/80 dark:text-rose-400/80' : 'text-slate-500 dark:text-slate-400'}`}>{note.content}</p>
                                                     {isOverdue && <div className="mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-rose-500 animate-pulse"><AlertCircle size={12}/> Gecikmiş Randevu</div>}

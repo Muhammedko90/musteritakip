@@ -9,9 +9,10 @@ interface Props {
     notes: Note[];
     onSelectNote: (note: Note) => void;
     activeTheme: ThemeColor;
+    onOpenCustomerCard?: (customer: string) => void;
 }
 
-const CommandPalette: React.FC<Props> = ({ isOpen, onClose, notes, onSelectNote, activeTheme }) => {
+const CommandPalette: React.FC<Props> = ({ isOpen, onClose, notes, onSelectNote, activeTheme, onOpenCustomerCard }) => {
     const [query, setQuery] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -24,17 +25,52 @@ const CommandPalette: React.FC<Props> = ({ isOpen, onClose, notes, onSelectNote,
     if (!isOpen) return null;
 
     const today = formatDateKey(new Date());
+    const lowerQuery = query.toLowerCase();
 
     const filteredNotes = notes
-        .filter(n => 
-            n.customer.toLowerCase().includes(query.toLowerCase()) || 
-            n.content.toLowerCase().includes(query.toLowerCase())
-        )
+        .filter(n => {
+            const customer = n.customer.toLowerCase();
+            const content = n.content.toLowerCase();
+            const dateObj = new Date(n.date);
+            const displayDate = isNaN(dateObj.getTime())
+                ? ''
+                : dateObj.toLocaleDateString('tr-TR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                  });
+
+            return (
+                customer.includes(lowerQuery) ||
+                content.includes(lowerQuery) ||
+                displayDate.includes(lowerQuery)
+            );
+        })
         .sort((a, b) => {
+            const aOverdue = !a.completed && a.date < today;
+            const bOverdue = !b.completed && b.date < today;
+
+            // 1) Gecikmiş (tamamlanmamış ve geçmiş tarihli) randevular en üstte
+            if (aOverdue && !bOverdue) return -1;
+            if (!aOverdue && bOverdue) return 1;
+
+            // 2) Kalanları bugüne ve geleceğe göre öne al
             if (a.date >= today && b.date < today) return -1;
             if (a.date < today && b.date >= today) return 1;
-            if (a.date >= today && b.date >= today) return a.date.localeCompare(b.date);
-            return b.date.localeCompare(a.date);
+
+            // 3) Aynı gruptakileri kendi içinde sırala
+            if (aOverdue && bOverdue) {
+                // Gecikmişler kendi içinde eski tarihten yeniye doğru
+                return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+            }
+
+            if (a.date >= today && b.date >= today) {
+                // Bugün ve sonrası: en yakın tarih/saat en üstte
+                return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
+            }
+
+            // Geçmiş & tamamlanmış kayıtlar: en yeni geçmiş en üstte
+            return b.date.localeCompare(a.date) || b.time.localeCompare(a.time);
         })
         .slice(0, 10);
         
@@ -79,15 +115,33 @@ const CommandPalette: React.FC<Props> = ({ isOpen, onClose, notes, onSelectNote,
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h4 className="font-bold text-slate-800 dark:text-slate-200">{note.customer}</h4>
+                                        <button
+                                            type="button"
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                onOpenCustomerCard && onOpenCustomerCard(note.customer);
+                                            }}
+                                            className="font-bold text-slate-800 dark:text-slate-200 hover:underline text-left"
+                                        >
+                                            {note.customer}
+                                        </button>
                                         {note.completed ? (
                                             <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">
                                                 <CheckCircle2 size={10}/> Tamamlandı
                                             </span>
                                         ) : (
-                                            <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">
-                                                <Clock size={10}/> Bekliyor
-                                            </span>
+                                            (() => {
+                                                const isOverdue = note.date < today;
+                                                return isOverdue ? (
+                                                    <span className="flex items-center gap-1 text-[10px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">
+                                                        <Clock size={10}/> Gecikmiş
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full uppercase tracking-tighter">
+                                                        <Clock size={10}/> Bekliyor
+                                                    </span>
+                                                );
+                                            })()
                                         )}
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[250px]">{note.content}</p>
