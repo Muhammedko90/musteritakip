@@ -20,7 +20,7 @@ interface Props {
     onClose: () => void;
     user: UserProfile;
     telegramConfig: TelegramConfig;
-    saveSettings: (config: SettingsUpdate) => void;
+    saveSettings: (config: SettingsUpdate) => void | Promise<void>;
     accentColor: string;
     themeMode: ThemeMode;
     language: Language;
@@ -59,6 +59,32 @@ const SettingsModal: React.FC<Props> = ({
         if (m > 59) m = 59;
         return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     };
+
+    const [dailyHour, setDailyHour] = useState('09');
+    const [dailyMinute, setDailyMinute] = useState('00');
+    const [weeklyHour, setWeeklyHour] = useState('18');
+    const [weeklyMinute, setWeeklyMinute] = useState('00');
+    const [backupHour, setBackupHour] = useState('23');
+    const [backupMinute, setBackupMinute] = useState('00');
+
+    const [dailySaved, setDailySaved] = useState(false);
+    const [weeklySaved, setWeeklySaved] = useState(false);
+    const [backupSaved, setBackupSaved] = useState(false);
+
+    const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+    const minuteOptions = ['00', '15', '30', '45'];
+
+    React.useEffect(() => {
+        const d = normalizeTime(telegramConfig.dailySummaryTime || '09:00', '09:00').split(':');
+        setDailyHour(d[0]);
+        setDailyMinute(d[1]);
+        const w = normalizeTime(telegramConfig.weeklySummaryTime || '18:00', '18:00').split(':');
+        setWeeklyHour(w[0]);
+        setWeeklyMinute(w[1]);
+        const b = normalizeTime(telegramConfig.autoBackupTime || '23:00', '23:00').split(':');
+        setBackupHour(b[0]);
+        setBackupMinute(b[1]);
+    }, [telegramConfig.dailySummaryTime, telegramConfig.weeklySummaryTime, telegramConfig.autoBackupTime]);
 
     if (!isOpen) return null;
 
@@ -197,22 +223,45 @@ const SettingsModal: React.FC<Props> = ({
                                         <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
                                             Saat
                                         </span>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-                                            placeholder="09:00"
-                                            className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
-                                            value={telegramConfig.dailySummaryTime || '09:00'}
-                                            onChange={e =>
-                                                saveSettings({
-                                                    dailySummaryTime: normalizeTime(
-                                                        e.target.value,
-                                                        telegramConfig.dailySummaryTime || '09:00'
-                                                    ),
-                                                })
-                                            }
-                                        />
+                                        <div className="flex items-center gap-1.5">
+                                            <select
+                                                className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
+                                                value={dailyHour}
+                                                onChange={e => setDailyHour(e.target.value)}
+                                            >
+                                                {hourOptions.map(h => (
+                                                    <option key={h} value={h}>{h}</option>
+                                                ))}
+                                            </select>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">:</span>
+                                            <select
+                                                className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
+                                                value={dailyMinute}
+                                                onChange={e => setDailyMinute(e.target.value)}
+                                            >
+                                                {minuteOptions.map(m => (
+                                                    <option key={m} value={m}>{m}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    await Promise.resolve(saveSettings({
+                                                        dailySummaryTime: `${dailyHour}:${dailyMinute}`,
+                                                    }));
+                                                    setDailySaved(true);
+                                                    window.setTimeout(() => setDailySaved(false), 1500);
+                                                }}
+                                                className="ml-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight rounded-xl bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
+                                            >
+                                                Kaydet
+                                            </button>
+                                            {dailySaved && (
+                                                <span className="ml-2 text-[10px] font-bold text-green-500">
+                                                    Kaydedildi
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -258,22 +307,45 @@ const SettingsModal: React.FC<Props> = ({
                                             <option value={5}>Cuma</option>
                                             <option value={6}>Cumartesi</option>
                                         </select>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-                                            placeholder="18:00"
-                                            className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
-                                            value={telegramConfig.weeklySummaryTime || '18:00'}
-                                            onChange={e =>
-                                                saveSettings({
-                                                    weeklySummaryTime: normalizeTime(
-                                                        e.target.value,
-                                                        telegramConfig.weeklySummaryTime || '18:00'
-                                                    ),
-                                                })
-                                            }
-                                        />
+                                        <div className="flex items-center gap-1.5">
+                                            <select
+                                                className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
+                                                value={weeklyHour}
+                                                onChange={e => setWeeklyHour(e.target.value)}
+                                            >
+                                                {hourOptions.map(h => (
+                                                    <option key={h} value={h}>{h}</option>
+                                                ))}
+                                            </select>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">:</span>
+                                            <select
+                                                className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
+                                                value={weeklyMinute}
+                                                onChange={e => setWeeklyMinute(e.target.value)}
+                                            >
+                                                {minuteOptions.map(m => (
+                                                    <option key={m} value={m}>{m}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    await Promise.resolve(saveSettings({
+                                                        weeklySummaryTime: `${weeklyHour}:${weeklyMinute}`,
+                                                    }));
+                                                    setWeeklySaved(true);
+                                                    window.setTimeout(() => setWeeklySaved(false), 1500);
+                                                }}
+                                                className="ml-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight rounded-xl bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
+                                            >
+                                                Kaydet
+                                            </button>
+                                            {weeklySaved && (
+                                                <span className="ml-2 text-[10px] font-bold text-green-500">
+                                                    Kaydedildi
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -441,22 +513,45 @@ const SettingsModal: React.FC<Props> = ({
                                     <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">
                                         Saat
                                     </span>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
-                                        placeholder="23:00"
-                                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
-                                        value={telegramConfig.autoBackupTime || '23:00'}
-                                        onChange={e =>
-                                            saveSettings({
-                                                autoBackupTime: normalizeTime(
-                                                    e.target.value,
-                                                    telegramConfig.autoBackupTime || '23:00'
-                                                ),
-                                            })
-                                        }
-                                    />
+                                    <div className="flex items-center gap-1.5">
+                                        <select
+                                            className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
+                                            value={backupHour}
+                                            onChange={e => setBackupHour(e.target.value)}
+                                        >
+                                            {hourOptions.map(h => (
+                                                <option key={h} value={h}>{h}</option>
+                                            ))}
+                                        </select>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">:</span>
+                                        <select
+                                            className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
+                                            value={backupMinute}
+                                            onChange={e => setBackupMinute(e.target.value)}
+                                        >
+                                            {minuteOptions.map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                await Promise.resolve(saveSettings({
+                                                    autoBackupTime: `${backupHour}:${backupMinute}`,
+                                                }));
+                                                setBackupSaved(true);
+                                                window.setTimeout(() => setBackupSaved(false), 1500);
+                                            }}
+                                            className="ml-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight rounded-xl bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
+                                        >
+                                            Kaydet
+                                        </button>
+                                        {backupSaved && (
+                                            <span className="ml-2 text-[10px] font-bold text-green-500">
+                                                Kaydedildi
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">

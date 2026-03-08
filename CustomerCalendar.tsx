@@ -92,6 +92,8 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
 
     const notesRef = useRef(stickyNotes);
     const [customerCardName, setCustomerCardName] = useState<string | null>(null);
+    const [firestoreRetryTrigger, setFirestoreRetryTrigger] = useState(0);
+    const firestoreRetryDoneRef = useRef(false);
     const activeTheme = THEME_COLORS[accentColor] || THEME_COLORS.blue;
 
     const normalizeCustomerKey = (name: string): string =>
@@ -157,6 +159,16 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         return base;
     }, [language]);
 
+    // Firestore does not accept undefined; strip optional fields that are undefined
+    const stripUndefined = <T extends Record<string, unknown>>(obj: T): T => {
+        const out = {} as T;
+        for (const k of Object.keys(obj)) {
+            const v = (obj as Record<string, unknown>)[k];
+            if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+        }
+        return out;
+    };
+
     // --- DB Helpers ---
     const saveNoteToDb = async (noteData: Note) => {
         if (user.isDemo) {
@@ -164,10 +176,19 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             return;
         }
         try {
-            await setDoc(doc(db, "users", user.uid, "notes", String(noteData.id)), noteData);
-        } catch (e) {
+            await setDoc(doc(db, "users", user.uid, "notes", String(noteData.id)), stripUndefined(noteData as Record<string, unknown>) as Note);
+        } catch (e: any) {
             console.error("Firestore Error", e);
             setCloudError(true);
+            if (e?.code === 'permission-denied') {
+                console.debug('[Firestore] permission-denied on write. auth.currentUser:', auth.currentUser ? { uid: auth.currentUser.uid } : null, 'path uid:', user.uid);
+                setNotificationModal({
+                    isOpen: true,
+                    title: 'İzin hatası',
+                    message: 'Randevu kaydedilemedi. Lütfen çıkış yapıp tekrar giriş yapın. Hata sürerse Firebase Console\'da Firestore kurallarını deploy edin: firebase deploy --only firestore:rules',
+                    type: 'error'
+                });
+            }
         }
     };
 
@@ -177,7 +198,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             return;
         }
         try {
-            await updateDoc(doc(db, "users", user.uid, "notes", String(id)), data);
+            await updateDoc(doc(db, "users", user.uid, "notes", String(id)), stripUndefined(data as Record<string, unknown>));
         } catch (e) { console.error("Update Error", e); }
     };
 
@@ -198,7 +219,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             return;
         }
         try {
-            await setDoc(doc(db, "users", user.uid, "sticky_notes", String(note.id)), note);
+            await setDoc(doc(db, "users", user.uid, "sticky_notes", String(note.id)), stripUndefined(note as Record<string, unknown>) as StickyNoteType);
         } catch (e) { console.error("Sticky Add Error", e); }
     };
 
@@ -208,7 +229,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             return;
         }
         try {
-            await updateDoc(doc(db, "users", user.uid, "sticky_notes", String(id)), data);
+            await updateDoc(doc(db, "users", user.uid, "sticky_notes", String(id)), stripUndefined(data as Record<string, unknown>));
         } catch (e) { console.error("Sticky Update Error", e); }
     };
 
@@ -266,7 +287,10 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
             localStorage.setItem('telegramConfig', JSON.stringify(updatedConfig));
         } else {
             try {
-                await setDoc(doc(db, "users", user.uid, "settings", "config"), updatedConfig, { merge: true });
+                const toWrite = Object.fromEntries(
+                    Object.entries(updatedConfig).filter(([, v]) => v !== undefined)
+                ) as Record<string, unknown>;
+                await setDoc(doc(db, "users", user.uid, "settings", "config"), toWrite, { merge: true });
             } catch(e) { console.error("Settings Error", e); }
         }
     };
@@ -327,28 +351,47 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         }
 
         if (user && !user.isDemo) {
-            const qNotes = query(collection(db, "users", user.uid, "notes"));
+            const uid = user.uid;
+            firestoreRetryDoneRef.current = false;
+            const setPermissionError = () => setCloudError(true);
+            const clearPermissionError = () => setCloudError(false);
+
+            let cancelled = false;
+            let teardown: (() => void) | undefined;
+            const setupListeners = () => {
+                if (cancelled) return;
+                const qNotes = query(collection(db, "users", uid, "notes"));
             const unsubscribeNotes = onSnapshot(qNotes, (querySnapshot) => {
                 const notesData: Note[] = [];
                 querySnapshot.forEach((doc) => {
                     notesData.push({ ...doc.data() as Note, id: parseInt(doc.id) || parseInt(doc.data().id) || Number(doc.id) });
                 });
                 setNotes(notesData);
-                setCloudError(false);
+                clearPermissionError();
             }, (error: any) => {
-                 if (error.code === 'permission-denied') setCloudError(true);
+                if (error?.code === 'permission-denied') {
+                    setPermissionError();
+                    console.debug('[Firestore] permission-denied. auth.currentUser:', auth.currentUser ? { uid: auth.currentUser.uid } : null, 'path uid:', uid);
+                    if (!firestoreRetryDoneRef.current && auth.currentUser?.uid === uid) {
+                        firestoreRetryDoneRef.current = true;
+                        auth.currentUser.getIdToken(true).then(() => {
+                            setTimeout(() => setFirestoreRetryTrigger(t => t + 1), 2500);
+                        }).catch(() => {});
+                    }
+                }
             });
 
-            const qSticky = query(collection(db, "users", user.uid, "sticky_notes"));
+            const qSticky = query(collection(db, "users", uid, "sticky_notes"));
             const unsubscribeSticky = onSnapshot(qSticky, (querySnapshot) => {
                 const stickyData: StickyNoteType[] = [];
                 querySnapshot.forEach((doc) => {
                     stickyData.push({ ...doc.data() as StickyNoteType, id: parseInt(doc.id) || parseInt(doc.data().id) || Number(doc.id) });
                 });
                 setStickyNotes(stickyData.sort((a,b) => b.id - a.id));
-            });
+                clearPermissionError();
+            }, (err: any) => { if (err?.code === 'permission-denied') setPermissionError(); });
 
-            getDoc(doc(db, "users", user.uid, "settings", "config")).then(snap => {
+            getDoc(doc(db, "users", uid, "settings", "config")).then(snap => {
                 if(snap.exists()) {
                     const data = snap.data();
                     setTelegramConfig({
@@ -376,12 +419,15 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                         localStorage.setItem('appLanguage', data.language as Language);
                     }
                 }
-            });
-            getDoc(doc(db, "users", user.uid, "settings", "customFields")).then(snap => {
-                if(snap.exists() && snap.data().fields) setCustomFields(snap.data().fields);
-            });
+                clearPermissionError();
+            }).catch((err: any) => { if (err?.code === 'permission-denied') setPermissionError(); });
 
-            const qCustomers = query(collection(db, "users", user.uid, "customers"));
+            getDoc(doc(db, "users", uid, "settings", "customFields")).then(snap => {
+                if(snap.exists() && snap.data().fields) setCustomFields(snap.data().fields);
+                clearPermissionError();
+            }).catch((err: any) => { if (err?.code === 'permission-denied') setPermissionError(); });
+
+            const qCustomers = query(collection(db, "users", uid, "customers"));
             const unsubscribeCustomers = onSnapshot(qCustomers, snapshot => {
                 const map: Record<string, CustomerProfile> = {};
                 snapshot.forEach(docSnap => {
@@ -390,7 +436,8 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                     map[id] = { ...data, id };
                 });
                 setCustomerProfiles(map);
-            });
+                clearPermissionError();
+            }, (err: any) => { if (err?.code === 'permission-denied') setPermissionError(); });
 
             setIsLoaded(true);
             return () => {
@@ -398,8 +445,26 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 unsubscribeSticky();
                 unsubscribeCustomers();
             };
+            };
+
+            (async () => {
+                if (auth.currentUser?.uid !== uid) {
+                    setIsLoaded(true);
+                    return;
+                }
+                try {
+                    await auth.currentUser.getIdToken(true);
+                } catch (_) { /* ignore */ }
+                if (cancelled) return;
+                teardown = setupListeners();
+            })();
+
+            return () => {
+                cancelled = true;
+                teardown?.();
+            };
         }
-    }, [user]);
+    }, [user, firestoreRetryTrigger]);
 
     useEffect(() => {
         if (isLoaded) {
@@ -1144,7 +1209,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
         let batch = writeBatch(db);
         let counter = 0;
         for (const u of updates) {
-            batch.update(doc(db, "users", user.uid, "notes", String(u.id)), u.data);
+            batch.update(doc(db, "users", user.uid, "notes", String(u.id)), stripUndefined(u.data as Record<string, unknown>));
             counter++;
             if (counter >= 400) { await batch.commit(); batch = writeBatch(db); counter = 0; }
         }
@@ -1446,7 +1511,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
 
             <div className="flex flex-col">
                 {user.isDemo && <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-900/30 px-4 py-2 text-center"><p className="text-xs text-amber-800 dark:text-amber-200 flex items-center justify-center gap-2"><Info size={14}/><span>Demo modundasınız. Veriler cihazda saklanır.</span></p></div>}
-                {cloudError && !user.isDemo && <div className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-100 dark:border-orange-900/30 px-4 py-2 text-center animate-pulse"><p className="text-xs text-orange-800 dark:text-orange-200 flex items-center justify-center gap-2 font-medium"><WifiOff size={14}/><span>İzin hatası. Veriler cihazda saklanıyor.</span></p></div>}
+                {cloudError && !user.isDemo && <div className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-100 dark:border-orange-900/30 px-4 py-2 text-center"><p className="text-xs text-orange-800 dark:text-orange-200 flex items-center justify-center gap-2 font-medium flex-wrap"><WifiOff size={14}/><span>İzin hatası. Veriler cihazda saklanıyor.</span><button type="button" onClick={() => setFirestoreRetryTrigger(t => t + 1)} className="ml-2 px-2 py-0.5 rounded bg-orange-200 dark:bg-orange-800 text-orange-900 dark:text-orange-100 text-xs font-semibold hover:bg-orange-300 dark:hover:bg-orange-700">Yenile</button></p></div>}
             </div>
 
             <main className="max-w-7xl mx-auto w-full px-4 mt-6 flex-1 flex flex-col">
