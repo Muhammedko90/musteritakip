@@ -418,7 +418,7 @@ exports.telegramWebhook = onRequest(async (req, res) => {
                 const jsonString = JSON.stringify(allNotes, null, 2);
                 const fileBuffer = Buffer.from(jsonString, 'utf-8');
                 
-                const trTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+                const trTime = new Date(new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }));
                 const displayDateStr = `${String(trTime.getDate()).padStart(2, '0')}-${String(trTime.getMonth() + 1).padStart(2, '0')}-${trTime.getFullYear()}`;
                 
                 const captionText = `📁 <b>Manuel Yedek Raporu</b>\n\n🗓 Tarih: <b>${displayDateStr}</b>\n✅ Toplam Kayıt: <b>${allNotes.length} adet</b>\n\nEkteki .json dosyasından tüm verilerinizin güncel yedeğini indirebilirsiniz.`;
@@ -464,7 +464,7 @@ exports.appointmentReminder = onSchedule({
     timeZone: "Europe/Istanbul"
 }, async (event) => {
     try {
-        const trTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+        const trTime = new Date(new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }));
         const yyyy = trTime.getFullYear();
         const mm = String(trTime.getMonth() + 1).padStart(2, '0');
         const dd = String(trTime.getDate()).padStart(2, '0');
@@ -531,7 +531,7 @@ exports.dailyBackupAndReport = onSchedule({
     timeZone: "Europe/Istanbul"
 }, async (event) => {
     try {
-        const trTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+        const trTime = new Date(new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }));
         const yyyy = trTime.getFullYear();
         const mm = String(trTime.getMonth() + 1).padStart(2, '0');
         const dd = String(trTime.getDate()).padStart(2, '0');

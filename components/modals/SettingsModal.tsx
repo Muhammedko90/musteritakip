@@ -47,6 +47,19 @@ const SettingsModal: React.FC<Props> = ({
 
     const activeTheme = THEME_COLORS[accentColor] || THEME_COLORS.blue;
 
+    const normalizeTime = (value: string, fallback: string): string => {
+        const raw = (value || '').trim();
+        if (!raw) return fallback;
+        const parts = raw.split(':');
+        let h = parseInt(parts[0] || '0', 10);
+        let m = parseInt(parts[1] || '0', 10);
+        if (isNaN(h) || h < 0) h = 0;
+        if (h > 23) h = 23;
+        if (isNaN(m) || m < 0) m = 0;
+        if (m > 59) m = 59;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
     if (!isOpen) return null;
 
     const downloadBackup = () => {
@@ -185,11 +198,19 @@ const SettingsModal: React.FC<Props> = ({
                                             Saat
                                         </span>
                                         <input
-                                            type="time"
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                                            placeholder="09:00"
                                             className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                             value={telegramConfig.dailySummaryTime || '09:00'}
                                             onChange={e =>
-                                                saveSettings({ dailySummaryTime: e.target.value })
+                                                saveSettings({
+                                                    dailySummaryTime: normalizeTime(
+                                                        e.target.value,
+                                                        telegramConfig.dailySummaryTime || '09:00'
+                                                    ),
+                                                })
                                             }
                                         />
                                     </div>
@@ -238,11 +259,19 @@ const SettingsModal: React.FC<Props> = ({
                                             <option value={6}>Cumartesi</option>
                                         </select>
                                         <input
-                                            type="time"
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                                            placeholder="18:00"
                                             className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                             value={telegramConfig.weeklySummaryTime || '18:00'}
                                             onChange={e =>
-                                                saveSettings({ weeklySummaryTime: e.target.value })
+                                                saveSettings({
+                                                    weeklySummaryTime: normalizeTime(
+                                                        e.target.value,
+                                                        telegramConfig.weeklySummaryTime || '18:00'
+                                                    ),
+                                                })
                                             }
                                         />
                                     </div>
@@ -413,11 +442,19 @@ const SettingsModal: React.FC<Props> = ({
                                         Saat
                                     </span>
                                     <input
-                                        type="time"
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="^([01]\\d|2[0-3]):[0-5]\\d$"
+                                        placeholder="23:00"
                                         className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                         value={telegramConfig.autoBackupTime || '23:00'}
                                         onChange={e =>
-                                            saveSettings({ autoBackupTime: e.target.value })
+                                            saveSettings({
+                                                autoBackupTime: normalizeTime(
+                                                    e.target.value,
+                                                    telegramConfig.autoBackupTime || '23:00'
+                                                ),
+                                            })
                                         }
                                     />
                                 </div>
