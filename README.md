@@ -2,6 +2,29 @@
 
 Uygulamanızı Telegram üzerinden yönetmek için aşağıdaki komutları kullanabilirsiniz.
 
+---
+
+### 📱 Uygulama kapalıyken Telegram’dan yanıt almak
+
+Bu komutlara (**/start**, **/ekle**, **/tamamla**, **/randevular**, **/buhafta**, **/notlarim**, **/bul**, **/id** vb.) uygulama kapalıyken de yanıt alabilirsiniz. Bunun için:
+
+1. **Firebase Cloud Functions** deploy edilmiş olmalı (`firebase deploy --only functions`).
+2. **Webhook** ayarlanmış olmalı (aşağıdaki “Webhook kurulumu” bölümü).
+3. Uygulama ayarlarında **Chat ID**’nizi girin ve **“Webhook modu”**nu açın. (Bot Token, webhook için sunucuda tanımlı bot ile aynı olmalı.)
+
+**Webhook kurulumu (proje sahibi / tek seferlik):**  
+👉 **Adım adım detaylı rehber:** [WEBHOOK_KURULUM.md](./WEBHOOK_KURULUM.md)
+
+- Firebase’de `telegramWebhook` fonksiyonunun URL’sini alın (Firebase Console → Functions → telegramWebhook).
+- Ortam değişkeni: `TELEGRAM_WEBHOOK_BOT_TOKEN` = Bot token’ınız.
+- Telegram’da webhook’u ayarlayın (tarayıcıda veya curl ile):
+  `https://api.telegram.org/bot<BOT_TOKEN>/setWebhook?url=<FONKSIYON_URL>`
+- Bu sayede tüm mesajlar sunucuya gider; uygulama kapalıyken de komutlar işlenir ve yanıtlar Telegram’a gider.
+
+**Otomatik yedek:** Ayarlarda seçtiğiniz saatlerde (Türkiye saati) **günlük özet**, **haftalık özet** ve **otomatik yedek** Telegram’a gönderilir; uygulama kapalıyken de çalışır (sunucu tarafında zamanlanmış görev).
+
+---
+
 ### 🚀 Hızlı İşlemler
 
 | Komut | Kullanım | Örnek | Açıklama |
@@ -16,7 +39,7 @@ Uygulamanızı Telegram üzerinden yönetmek için aşağıdaki komutları kulla
 | `/randevular` | Kayıtlı tüm tamamlanmamış randevuları tarih sırasına göre listeler. |
 | `/buhafta` | İçinde bulunduğumuz haftanın tüm randevularını gün gün listeler. |
 | `/tamamlananlar` | Son tamamlanan 10 işlemi listeler. |
-| `/notlarım` | Yapışkan notlarınızı (TodoList) getirir. |
+| `/notlarim` | Yapışkan notlarınızı (TodoList) getirir. |
 
 ### 🔍 Arama ve Yardım
 
@@ -24,7 +47,7 @@ Uygulamanızı Telegram üzerinden yönetmek için aşağıdaki komutları kulla
 |-------|----------|
 | `/bul [kelime]` | Müşteri adı veya not içeriğinde arama yapar. Örnek: `/bul Ahmet` |
 | `/id` | Telegram Chat ID numaranızı gösterir. Özel mesajda veya kanalda kullanılabilir. |
-| `/start` veya `menü` | Ana menü butonlarını açar. |
+| `/start`, `/menu`, `/yardim` | Ana menü butonlarını açar. |
 
 ---
 

@@ -67,10 +67,6 @@ const SettingsModal: React.FC<Props> = ({
     const [backupHour, setBackupHour] = useState('23');
     const [backupMinute, setBackupMinute] = useState('00');
 
-    const [dailySaved, setDailySaved] = useState(false);
-    const [weeklySaved, setWeeklySaved] = useState(false);
-    const [backupSaved, setBackupSaved] = useState(false);
-
     const hourOptions = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
     const minuteOptions = ['00', '15', '30', '45'];
 
@@ -186,6 +182,9 @@ const SettingsModal: React.FC<Props> = ({
                              <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg"><MessageSquare size={16}/></div>
                              Telegram Bot Yönetimi
                         </h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                            Günlük/haftalık özet ve otomatik yedek, ayarladığınız saatlerde <strong>uygulama kapalıyken bile</strong> Telegram’a gönderilir.
+                        </p>
                         <div className="space-y-4">
                             <div><label className="text-[10px] uppercase font-black text-slate-400 ml-1 mb-1 block">Bot Token</label><input type="text" className="w-full px-4 py-3 border border-slate-200 dark:border-white/10 rounded-2xl text-sm bg-slate-50 dark:bg-black/20 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={telegramConfig.botToken} onChange={e => saveSettings({ botToken: e.target.value })} /></div>
                             <div><label className="text-[10px] uppercase font-black text-slate-400 ml-1 mb-1 block">Chat ID (Virgülle ayırın)</label><input type="text" className="w-full px-4 py-3 border border-slate-200 dark:border-white/10 rounded-2xl text-sm bg-slate-50 dark:bg-black/20 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={telegramConfig.chatId} onChange={e => saveSettings({ chatId: e.target.value })} /></div>
@@ -197,6 +196,20 @@ const SettingsModal: React.FC<Props> = ({
                                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Anlık Bildirimler</span>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" className="sr-only peer" checked={telegramConfig.enabled} onChange={e => saveSettings({ enabled: e.target.checked })} /><div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div></label>
+                                </div>
+
+                                <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-black text-slate-700 dark:text-slate-200">Webhook modu</span>
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Uygulama kapalıyken /start, /ekle, /tamamla vb. yanıtlanır</span>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" className="sr-only peer" checked={!!telegramConfig.webhookEnabled} onChange={e => saveSettings({ webhookEnabled: e.target.checked })} />
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                        </label>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400">Sunucuda webhook tanımlıysa bu bot ile Chat ID kaydettiğinizde kapalıyken de yanıt alırsınız.</p>
                                 </div>
 
                                 <div className="bg-slate-50 dark:bg-black/20 p-4 rounded-2xl border border-slate-100 dark:border-white/5 space-y-3">
@@ -227,7 +240,11 @@ const SettingsModal: React.FC<Props> = ({
                                             <select
                                                 className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                                 value={dailyHour}
-                                                onChange={e => setDailyHour(e.target.value)}
+                                                onChange={e => {
+                                                    const h = e.target.value;
+                                                    setDailyHour(h);
+                                                    saveSettings({ dailySummaryTime: `${h}:${dailyMinute}` });
+                                                }}
                                             >
                                                 {hourOptions.map(h => (
                                                     <option key={h} value={h}>{h}</option>
@@ -237,30 +254,17 @@ const SettingsModal: React.FC<Props> = ({
                                             <select
                                                 className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                                 value={dailyMinute}
-                                                onChange={e => setDailyMinute(e.target.value)}
+                                                onChange={e => {
+                                                    const m = e.target.value;
+                                                    setDailyMinute(m);
+                                                    saveSettings({ dailySummaryTime: `${dailyHour}:${m}` });
+                                                }}
                                             >
                                                 {minuteOptions.map(m => (
                                                     <option key={m} value={m}>{m}</option>
                                                 ))}
                                             </select>
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    await Promise.resolve(saveSettings({
-                                                        dailySummaryTime: `${dailyHour}:${dailyMinute}`,
-                                                    }));
-                                                    setDailySaved(true);
-                                                    window.setTimeout(() => setDailySaved(false), 1500);
-                                                }}
-                                                className="ml-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight rounded-xl bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
-                                            >
-                                                Kaydet
-                                            </button>
-                                            {dailySaved && (
-                                                <span className="ml-2 text-[10px] font-bold text-green-500">
-                                                    Kaydedildi
-                                                </span>
-                                            )}
+                                            <span className="ml-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">Türkiye saati</span>
                                         </div>
                                     </div>
                                 </div>
@@ -311,7 +315,11 @@ const SettingsModal: React.FC<Props> = ({
                                             <select
                                                 className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                                 value={weeklyHour}
-                                                onChange={e => setWeeklyHour(e.target.value)}
+                                                onChange={e => {
+                                                    const h = e.target.value;
+                                                    setWeeklyHour(h);
+                                                    saveSettings({ weeklySummaryTime: `${h}:${weeklyMinute}` });
+                                                }}
                                             >
                                                 {hourOptions.map(h => (
                                                     <option key={h} value={h}>{h}</option>
@@ -321,30 +329,17 @@ const SettingsModal: React.FC<Props> = ({
                                             <select
                                                 className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                                 value={weeklyMinute}
-                                                onChange={e => setWeeklyMinute(e.target.value)}
+                                                onChange={e => {
+                                                    const m = e.target.value;
+                                                    setWeeklyMinute(m);
+                                                    saveSettings({ weeklySummaryTime: `${weeklyHour}:${m}` });
+                                                }}
                                             >
                                                 {minuteOptions.map(m => (
                                                     <option key={m} value={m}>{m}</option>
                                                 ))}
                                             </select>
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    await Promise.resolve(saveSettings({
-                                                        weeklySummaryTime: `${weeklyHour}:${weeklyMinute}`,
-                                                    }));
-                                                    setWeeklySaved(true);
-                                                    window.setTimeout(() => setWeeklySaved(false), 1500);
-                                                }}
-                                                className="ml-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight rounded-xl bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
-                                            >
-                                                Kaydet
-                                            </button>
-                                            {weeklySaved && (
-                                                <span className="ml-2 text-[10px] font-bold text-green-500">
-                                                    Kaydedildi
-                                                </span>
-                                            )}
+                                            <span className="ml-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">Türkiye saati</span>
                                         </div>
                                     </div>
                                 </div>
@@ -517,7 +512,11 @@ const SettingsModal: React.FC<Props> = ({
                                         <select
                                             className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                             value={backupHour}
-                                            onChange={e => setBackupHour(e.target.value)}
+                                            onChange={e => {
+                                                const h = e.target.value;
+                                                setBackupHour(h);
+                                                saveSettings({ autoBackupTime: `${h}:${backupMinute}` });
+                                            }}
                                         >
                                             {hourOptions.map(h => (
                                                 <option key={h} value={h}>{h}</option>
@@ -527,30 +526,17 @@ const SettingsModal: React.FC<Props> = ({
                                         <select
                                             className="px-2 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 outline-none"
                                             value={backupMinute}
-                                            onChange={e => setBackupMinute(e.target.value)}
+                                            onChange={e => {
+                                                const m = e.target.value;
+                                                setBackupMinute(m);
+                                                saveSettings({ autoBackupTime: `${backupHour}:${m}` });
+                                            }}
                                         >
                                             {minuteOptions.map(m => (
                                                 <option key={m} value={m}>{m}</option>
                                             ))}
                                         </select>
-                                        <button
-                                            type="button"
-                                            onClick={async () => {
-                                                await Promise.resolve(saveSettings({
-                                                    autoBackupTime: `${backupHour}:${backupMinute}`,
-                                                }));
-                                                setBackupSaved(true);
-                                                window.setTimeout(() => setBackupSaved(false), 1500);
-                                            }}
-                                            className="ml-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-tight rounded-xl bg-slate-800 text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
-                                        >
-                                            Kaydet
-                                        </button>
-                                        {backupSaved && (
-                                            <span className="ml-2 text-[10px] font-bold text-green-500">
-                                                Kaydedildi
-                                            </span>
-                                        )}
+                                        <span className="ml-2 text-[10px] text-slate-400 font-bold uppercase tracking-tight">Türkiye saati</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-1.5">

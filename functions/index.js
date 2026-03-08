@@ -21,6 +21,36 @@ const getTrDateStr = (daysToAdd = 0) => {
     return trTime.toISOString().split('T')[0];
 };
 
+/** Türkiye saatinde şu anki Date (saat/dakika için) */
+const getTrTime = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+
+/** Saati normalize et: "9:0" -> "09:00" */
+const normTime = (t) => {
+    if (!t || typeof t !== 'string') return '';
+    const parts = t.trim().split(':');
+    const h = Math.min(23, Math.max(0, parseInt(parts[0] || '0', 10)));
+    const m = Math.min(59, Math.max(0, parseInt(parts[1] || '0', 10)));
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+/** Haftanın başı (Pazartesi) ve sonu (Pazar) YYYY-MM-DD - Türkiye tarihine göre */
+const getTrWeekRange = (trDate) => {
+    const d = new Date(trDate);
+    const day = d.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + diffToMonday);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const fmt = (x) => {
+        const y = x.getFullYear();
+        const m = String(x.getMonth() + 1).padStart(2, '0');
+        const day = String(x.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    return { start: fmt(monday), end: fmt(sunday) };
+};
+
 /**
  * 1. TELEGRAM WEBHOOK (Komutları İşleyen Zengin Asistan)
  */
@@ -177,7 +207,8 @@ exports.telegramWebhook = onRequest(async (req, res) => {
             }
         }
 
-        if (command === '/start' || command === '/yardim' || command === '/menu' || text === '❌ İptal') {
+        const textLower = (text || '').trim().toLowerCase();
+        if (command === '/start' || command === '/yardim' || command === '/menu' || text === '❌ İptal' || textLower === 'menü' || textLower === 'menu') {
             let menu = `🤖 <b>ASİSTAN ANA MENÜ</b>\n\n`;
             menu += `Aşağıdaki butonları kullanabilir veya manuel komut yazabilirsiniz:\n\n`;
             menu += `🔹 /ekle [İsim] [Tarih] [Saat] - Randevu Ekle\n`;
@@ -532,119 +563,161 @@ exports.appointmentReminder = onSchedule({
 });
 
 /**
- * 3. GÜNLÜK YEDEK VE RAPOR (Türkiye Saati ile Her Gün 18:00'da çalışır)
+ * 3. GÜNLÜK ÖZET, HAFTALIK ÖZET, OTOMATİK YEDEK (Ayarlardaki saatlere göre – uygulama kapalıyken de çalışır)
+ * Her 15 dakikada bir Türkiye saatini kontrol eder; kullanıcının ayarladığı saatlerde Telegram’a gönderir.
  */
-exports.dailyBackupAndReport = onSchedule({
-    schedule: "0 18 * * *",
+exports.scheduledTelegramTasks = onSchedule({
+    schedule: "*/15 * * * *",
     timeZone: "Europe/Istanbul"
 }, async (event) => {
     try {
-        const trTime = new Date(new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' }));
+        const trTime = getTrTime();
         const yyyy = trTime.getFullYear();
         const mm = String(trTime.getMonth() + 1).padStart(2, '0');
         const dd = String(trTime.getDate()).padStart(2, '0');
-        
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+        const currentTime = `${String(trTime.getHours()).padStart(2, '0')}:${String(trTime.getMinutes()).padStart(2, '0')}`;
+        const dayOfWeek = trTime.getDay();
         const displayDateStr = `${dd}-${mm}-${yyyy}`;
 
         const settingsSnap = await admin.firestore().collectionGroup('settings').get();
 
         for (const settingsDoc of settingsSnap.docs) {
             if (settingsDoc.id !== 'config') continue;
-            
+
             const config = settingsDoc.data();
             const userId = settingsDoc.ref.parent.parent.id;
-            
-            if (config.botToken && config.chatId && config.enabled !== false) {
 
+            if (!config.botToken || !config.chatId || config.enabled === false) continue;
+
+            const hasDaily = config.dailySummaryEnabled === true && config.dailySummaryTime;
+            const hasWeekly = config.weeklySummaryEnabled === true && typeof config.weeklySummaryDay === 'number' && config.weeklySummaryTime;
+            const hasBackup = config.autoBackupEnabled === true && config.autoBackupTime;
+            if (!hasDaily && !hasWeekly && !hasBackup) continue;
+
+            const lastSnap = await admin.firestore().collection('users').doc(userId).collection('settings').doc('lastScheduled').get();
+            const last = lastSnap.exists ? lastSnap.data() : {};
+            const lastDailyDate = last.lastDailyDate || '';
+            const lastWeeklyDate = last.lastWeeklyDate || '';
+            const lastBackupDate = last.lastBackupDate || '';
+
+            const dailyTime = normTime(config.dailySummaryTime);
+            const weeklyTime = normTime(config.weeklySummaryTime);
+            const backupTime = normTime(config.autoBackupTime);
+
+            let needNotes = hasDaily || hasWeekly || hasBackup;
+            let notes = [];
+            let stickyNotes = [];
+            let customFields = [];
+
+            if (needNotes) {
                 const [notesSnap, stickySnap, customFieldsSnap] = await Promise.all([
                     admin.firestore().collection('users').doc(userId).collection('notes').get(),
                     (async () => {
-                        // Koleksiyon adı geçmiş sürümlerde farklı olabilir
                         let s = await admin.firestore().collection('users').doc(userId).collection('sticky_notes').get();
-                        if (s.empty) {
-                            s = await admin.firestore().collection('users').doc(userId).collection('stickyNotes').get();
-                        }
+                        if (s.empty) s = await admin.firestore().collection('users').doc(userId).collection('stickyNotes').get();
                         return s;
                     })(),
                     admin.firestore().collection('users').doc(userId).collection('settings').doc('customFields').get()
                 ]);
+                notes = notesSnap.docs.map(d => d.data());
+                stickyNotes = stickySnap.empty ? [] : stickySnap.docs.map(d => d.data());
+                customFields = customFieldsSnap.exists && customFieldsSnap.data().fields ? customFieldsSnap.data().fields : [];
+            }
 
-                const notes = notesSnap.docs.map(d => d.data());
-                const stickyNotes = stickySnap.empty ? [] : stickySnap.docs.map(d => d.data());
-                const customFields = customFieldsSnap.exists ? (customFieldsSnap.data().fields || []) : [];
-
-                const exportData = {
-                    exportDate: trTime.toISOString(),
-                    userId: userId,
-                    notes,
-                    stickyNotes,
-                    telegramConfig: {
-                        botToken: config.botToken,
-                        chatId: config.chatId,
-                        enabled: config.enabled,
-                        webhookEnabled: config.webhookEnabled
-                    },
-                    customFields
-                };
-
-                const jsonString = JSON.stringify(exportData, null, 2);
-                const fileBuffer = Buffer.from(jsonString, 'utf-8');
-
-                const captionText =
-                    `📦 <b>Günlük Otomatik Yedek</b>\n\n` +
-                    `🗓 Tarih: <b>${displayDateStr}</b>\n` +
-                    `🗂 Randevu: <b>${notes.length}</b>\n` +
-                    `📝 Not: <b>${stickyNotes.length}</b>\n\n` +
-                    `Ekteki .json dosyası tüm verilerinizin yedeğidir.`;
-
-                const todayStr = `${yyyy}-${mm}-${dd}`;
-                const tomorrowStr = getTrDateStr(1);
-                const todayNotes = notes.filter(n => n && n.date === todayStr);
-                const todayPending = todayNotes.filter(n => !n.completed).length;
-                const todayCompleted = todayNotes.filter(n => n.completed).length;
-                const tomorrowFirst = notes
-                    .filter(n => n && n.date === tomorrowStr && !n.completed)
-                    .sort((a, b) => String(a.time).localeCompare(String(b.time)))[0] || null;
-
-                const summaryText =
-                    `📊 <b>Günlük Özet</b>\n` +
-                    `🗓 Bugün: <b>${displayDateStr}</b>\n` +
-                    `⏳ Bekleyen: <b>${todayPending}</b>\n` +
-                    `✅ Tamamlanan: <b>${todayCompleted}</b>\n` +
-                    (tomorrowFirst
-                        ? `\n➡️ <b>Yarın ilk randevu</b>\n🕐 ${tomorrowFirst.time} • 👤 ${tomorrowFirst.customer}`
-                        : `\n➡️ <b>Yarın</b>: Bekleyen randevu yok`);
-                const chatIds = String(config.chatId).split(',').map(id => id.trim());
-                
+            const chatIds = String(config.chatId).split(',').map(id => id.trim()).filter(Boolean);
+            const sendMsg = async (text) => {
                 for (const chatId of chatIds) {
                     try {
                         await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ chat_id: chatId, text: summaryText, parse_mode: 'HTML' })
+                            body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' })
                         });
+                    } catch (e) { console.error('Telegram send error:', e); }
+                }
+            };
 
+            const updates = {};
+
+            if (hasDaily && dailyTime === currentTime && lastDailyDate !== todayStr) {
+                const todayNotes = notes.filter(n => n && n.date === todayStr);
+                const pending = todayNotes.filter(n => !n.completed);
+                const completed = todayNotes.filter(n => n.completed);
+                let msg = "📅 <b>Günlük Özet</b>\n\n";
+                msg += `Bugün toplam: ${todayNotes.length} kayıt\n`;
+                msg += `Bekleyen: ${pending.length}\n`;
+                msg += `Tamamlanan: ${completed.length}\n`;
+                const upcoming = pending.slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))).slice(0, 5);
+                if (upcoming.length > 0) {
+                    msg += "\nEn yakın randevular:\n";
+                    upcoming.forEach(n => { msg += `• ${n.time || ''} - ${n.customer}\n`; });
+                }
+                await sendMsg(msg);
+                updates.lastDailyDate = todayStr;
+            }
+
+            if (hasWeekly && config.weeklySummaryDay === dayOfWeek && weeklyTime === currentTime && lastWeeklyDate !== todayStr) {
+                const { start, end } = getTrWeekRange(trTime);
+                const weekNotes = notes
+                    .filter(n => n && n.date >= start && n.date <= end && !n.completed)
+                    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || String(a.time || '').localeCompare(String(b.time || '')));
+                let msg = `📅 <b>Haftalık Özet</b>\n\nTarih aralığı: ${start} - ${end}\n`;
+                msg += `Bekleyen kayıt sayısı: ${weekNotes.length}\n`;
+                const preview = weekNotes.slice(0, 10);
+                if (preview.length > 0) {
+                    msg += "\nÖrnek kayıtlar:\n";
+                    preview.forEach(n => { msg += `• ${n.date} ${n.time || ''} - ${n.customer}\n`; });
+                    if (weekNotes.length > preview.length) msg += `... ve ${weekNotes.length - preview.length} kayıt daha.`;
+                } else {
+                    msg += "\nBu hafta için bekleyen kayıt yok.";
+                }
+                await sendMsg(msg);
+                updates.lastWeeklyDate = todayStr;
+            }
+
+            const backupOk = hasBackup && backupTime === currentTime && lastBackupDate !== todayStr;
+            const backupDaily = config.autoBackupFrequency !== 'weekly';
+            const backupWeeklyDay = !backupDaily && typeof config.weeklySummaryDay === 'number' && config.weeklySummaryDay === dayOfWeek;
+            if (backupOk && (backupDaily || backupWeeklyDay)) {
+                const exportData = {
+                    exportDate: trTime.toISOString(),
+                    userId,
+                    notes,
+                    stickyNotes,
+                    telegramConfig: { botToken: config.botToken, chatId: config.chatId, enabled: config.enabled, webhookEnabled: config.webhookEnabled },
+                    customFields
+                };
+                const jsonString = JSON.stringify(exportData, null, 2);
+                const fileBuffer = Buffer.from(jsonString, 'utf-8');
+                const captionText = `📦 <b>Otomatik Yedek</b>\n\n🗓 Tarih: <b>${displayDateStr}</b>\n🗂 Randevu: <b>${notes.length}</b>\n📝 Not: <b>${stickyNotes.length}</b>\n\nEkteki .json dosyası tüm verilerinizin yedeğidir.`;
+                for (const chatId of chatIds) {
+                    try {
                         const form = new FormData();
                         form.append('chat_id', chatId);
                         form.append('caption', captionText);
                         form.append('parse_mode', 'HTML');
-                        form.append('document', fileBuffer, {
-                            filename: `yedek_${yyyy}-${mm}-${dd}.json`,
-                            contentType: 'application/json'
-                        });
-
-                        await fetch(`https://api.telegram.org/bot${config.botToken}/sendDocument`, {
-                            method: 'POST',
-                            body: form
-                        });
-                    } catch(e) { console.error(`Dosya gönderme hatası:`, e); }
+                        form.append('document', fileBuffer, { filename: `yedek_${yyyy}-${mm}-${dd}.json`, contentType: 'application/json' });
+                        await fetch(`https://api.telegram.org/bot${config.botToken}/sendDocument`, { method: 'POST', body: form });
+                    } catch (e) { console.error('Backup send error:', e); }
                 }
+                updates.lastBackupDate = todayStr;
+            }
+
+            if (Object.keys(updates).length > 0) {
+                await admin.firestore().collection('users').doc(userId).collection('settings').doc('lastScheduled').set(updates, { merge: true });
             }
         }
     } catch (error) {
-         console.error("Günlük yedekleme hatası:", error);
+        console.error("scheduledTelegramTasks hatası:", error);
     }
 });
+
+/** Eski sabit 18:00 görevi – artık scheduledTelegramTasks kullanıcı saatine göre çalışıyor. Bu export uyumluluk için boş bırakıldı. */
+exports.dailyBackupAndReport = onSchedule({
+    schedule: "0 0 1 1 *",
+    timeZone: "Europe/Istanbul"
+}, async () => {});
 
 /**
  * 4. GÜNCELLEME TETİKLEYİCİSİ (V1 Altyapısı ile Hata Giderildi)

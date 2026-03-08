@@ -502,11 +502,10 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
 
         const checkReminders = () => {
             const now = new Date();
-            const currentHourMinute = now.toLocaleTimeString('tr-TR', {
-                hour: '2-digit',
-                minute: '2-digit',
-            });
-            const todayStr = formatDateKey(now);
+            // Türkiye saatine göre HH:mm (ayarlardaki saatlerle eşleşmesi için)
+            const trNow = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+            const currentHourMinute = `${String(trNow.getHours()).padStart(2, '0')}:${String(trNow.getMinutes()).padStart(2, '0')}`;
+            const todayStr = formatDateKey(trNow);
 
             const getOffsetMinutes = (reminderBefore?: Note['reminderBefore']): number => {
                 switch (reminderBefore) {
@@ -521,7 +520,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 }
             };
 
-            // Appointment Reminders
+            // Appointment Reminders (Türkiye saatine göre karşılaştırma)
             notes.forEach(note => {
                 if (note.completed) return;
                 const noteDateTime = new Date(`${note.date}T${note.time || '00:00'}:00`);
@@ -529,11 +528,9 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
 
                 const offset = getOffsetMinutes(note.reminderBefore);
                 const remindAt = new Date(noteDateTime.getTime() - offset * 60000);
-                const remindDateStr = formatDateKey(remindAt);
-                const remindTimeStr = remindAt.toLocaleTimeString('tr-TR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                });
+                const remindTr = new Date(remindAt.toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+                const remindDateStr = formatDateKey(remindTr);
+                const remindTimeStr = `${String(remindTr.getHours()).padStart(2, '0')}:${String(remindTr.getMinutes()).padStart(2, '0')}`;
 
                 if (
                     remindDateStr === todayStr &&
@@ -606,15 +603,15 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 lastDailySummaryRef.current = todayStr;
             }
 
-            // Weekly summary
+            // Weekly summary (gün Türkiye saatine göre)
             if (
                 telegramConfig.weeklySummaryEnabled &&
                 typeof telegramConfig.weeklySummaryDay === 'number' &&
                 telegramConfig.weeklySummaryTime === currentHourMinute &&
-                now.getDay() === telegramConfig.weeklySummaryDay &&
+                trNow.getDay() === telegramConfig.weeklySummaryDay &&
                 lastWeeklySummaryRef.current !== todayStr
             ) {
-                const d = new Date();
+                const d = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
                 const start = formatDateKey(getStartOfWeek(d));
                 const end = formatDateKey(getEndOfWeek(d));
                 const weekNotes = notes
@@ -645,7 +642,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 lastWeeklySummaryRef.current = todayStr;
             }
 
-            // Auto backup
+            // Auto backup (haftalıkta seçilen gün Türkiye saatine göre)
             if (
                 telegramConfig.autoBackupEnabled &&
                 telegramConfig.autoBackupTime === currentHourMinute &&
@@ -654,7 +651,7 @@ const CustomerCalendar: React.FC<Props> = ({ user }) => {
                 if (
                     telegramConfig.autoBackupFrequency === 'weekly' &&
                     typeof telegramConfig.weeklySummaryDay === 'number' &&
-                    now.getDay() !== telegramConfig.weeklySummaryDay
+                    trNow.getDay() !== telegramConfig.weeklySummaryDay
                 ) {
                     // Weekly, but not the chosen day
                 } else {
